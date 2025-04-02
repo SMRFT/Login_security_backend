@@ -3,9 +3,10 @@ import os, json
 from django.contrib.auth.hashers import check_password
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
-from rest_framework_simplejwt.tokens import RefreshToken
 from pymongo import MongoClient
 from bson import ObjectId
+from . import jwt_gen
+
 
 # Connect to MongoDB
 client = MongoClient(os.getenv('GLOBAL_DB_HOST'))
@@ -103,23 +104,17 @@ def login_view(request):
     user_profile['permissions'] = unique_permissions
     user_profile['roleDetails'] = role_details
     
-    # Generate JWT tokens
-    refresh = RefreshToken()
-    refresh.payload['employeeId'] = employee_id
-    refresh.payload['is_active'] = user_data.get('is_active', True)
-    refresh.payload['primaryRole'] = user_profile['primaryRole']
-    refresh.payload['permissions'] = unique_permissions
-    
-    # Add additionalRoles to token if available
-    if user_profile['additionalRoles']:
-        refresh.payload['additionalRoles'] = user_profile['additionalRoles']
-    
-    # Add dataEntitlements to token if available
-    if user_profile['dataEntitlements']:
-        refresh.payload['dataEntitlements'] = user_profile['dataEntitlements']
+    token_vals = {
+        'aud': employee_id, 
+        'email': user_profile['emailId'], 
+        'name': user_profile['name'], 
+        'allowed-actions': unique_permissions, 
+        'allowed-data': user_profile['dataEntitlements']
+    }
+
+    token = jwt_gen.createJwt(token_vals)
+
 
     return Response({
-        'refresh': str(refresh),
-        'access': str(refresh.access_token),
-        'user': user_profile
+        'access_token': token
     })
