@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-z&lr(&27n%a#wu6fgn9t50z@m$t1b1ez5+m#8hm(xij4+o9yju
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['103.205.141.149','node221456-env-5683222.in1.cloudlets.co.in']
+ALLOWED_HOSTS = ['103.205.141.149','node221456-env-5683222.in1.cloudlets.co.in','env-5683222.in1.cloudlets.co.in']
 
 
 # Application definition
