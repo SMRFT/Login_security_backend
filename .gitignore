@@ -1,11 +1,10 @@
-.venv
-*.xyz
-*.pyc
 env
-
-**/*.pyc
-
+env/*
+.venv
 .venv/*
+
+*.pyc
+**/*.pyc
 
 __pycache__/*
 */__pycache__/*
