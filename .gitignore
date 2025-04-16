@@ -1,0 +1,6 @@
+.venv
+*.xyz
+*.pyc
+env
+
+**/*.pyc
