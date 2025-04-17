@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-z&lr(&27n%a#wu6fgn9t50z@m$t1b1ez5+m#8hm(xij4+o9yju
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['103.205.141.149','node221456-env-5683222.in1.cloudlets.co.in','env-5683222.in1.cloudlets.co.in']
+ALLOWED_HOSTS = ['103.205.141.149','node221456-env-5683222.in1.cloudlets.co.in','env-5683222.in1.cloudlets.co.in','127.0.0.1']
 
 
 # Application definition
@@ -134,4 +134,16 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins for development
+CORS_ORIGIN_ALLOW_ALL = True
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000","http://localhost:3001", "http://localhost:2102"]
+# Static files (CSS, JavaScript, Images)
+# https://docs.djangoproject.com/en/5.1/howto/static-files/
+
+CORS_ALLOW_HEADERS = [
+    "Authorization",
+    "Content-Type",
+    "Branch-Code"
+]
+
+STATIC_URL = 'static/'
