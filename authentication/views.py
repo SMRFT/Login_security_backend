@@ -6,7 +6,9 @@ from rest_framework.decorators import api_view
 from pymongo import MongoClient
 from bson import ObjectId
 from . import jwt_gen
+from dotenv import load_dotenv
 
+load_dotenv()
 
 # Connect to MongoDB
 client = MongoClient(os.getenv('GLOBAL_DB_HOST'))

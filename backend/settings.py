@@ -79,6 +79,9 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 import certifi
 import os 
+from dotenv import load_dotenv
+
+load_dotenv()
 DATABASES = {
     'default': {
         'ENGINE': 'djongo',
