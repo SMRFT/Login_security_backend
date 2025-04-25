@@ -118,3 +118,24 @@ def login_view(request):
     return Response({
         'access_token': token
     })
+
+from django.http import JsonResponse
+from pymongo import MongoClient
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+def getmodules(request):
+    try:
+        client = MongoClient(os.getenv('GLOBAL_DB_HOST'))
+        db = client[os.getenv('GLOBAL_DB_NAME')]
+        collection = db['backend_diagnostics_Modules']
+
+        modules_cursor = collection.find({"is_active": True}, {'_id': 0})
+        modules = list(modules_cursor)
+
+        return JsonResponse({'modules': modules}, status=200)
+    
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
