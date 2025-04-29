@@ -84,6 +84,7 @@ def login_view(request):
     for role_code in all_roles:
         role_data = role_mapping_collection.find_one({"role_code": role_code})
         print("role_data:",all_roles)
+      
         if role_data and role_data.get('is_active', True):
             # Extract permissions
             if 'permissions' in role_data and 'allowed' in role_data['permissions']:
@@ -111,7 +112,7 @@ def login_view(request):
         'allowed-actions': unique_permissions, 
         'allowed-data': user_profile['dataEntitlements']
     }
-
+    print(token_vals)
     token = jwt_gen.createJwt(token_vals)
 
 
