@@ -86,6 +86,7 @@ def login_view(request):
     for role_code in all_roles:
         role_data = role_mapping_collection.find_one({"role_code": role_code})
         print("role_data:",all_roles)
+      
         if role_data and role_data.get('is_active', True):
             # Extract permissions
             if 'permissions' in role_data and 'allowed' in role_data['permissions']:
@@ -113,10 +114,31 @@ def login_view(request):
         'allowed-actions': unique_permissions, 
         'allowed-data': user_profile['dataEntitlements']
     }
-
+    print(token_vals)
     token = jwt_gen.createJwt(token_vals)
 
 
     return Response({
         'access_token': token
     })
+
+from django.http import JsonResponse
+from pymongo import MongoClient
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+def getmodules(request):
+    try:
+        client = MongoClient(os.getenv('GLOBAL_DB_HOST'))
+        db = client[os.getenv('GLOBAL_DB_NAME')]
+        collection = db['backend_diagnostics_Modules']
+
+        modules_cursor = collection.find({"is_active": True}, {'_id': 0})
+        modules = list(modules_cursor)
+
+        return JsonResponse({'modules': modules}, status=200)
+    
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

@@ -88,9 +88,7 @@ DATABASES = {
         'ENFORCE_SCHEMA': False,
         'CLIENT': {
             'host': os.getenv("GLOBAL_DB_HOST"),
-            'password': os.getenv("GLOBAL_DB_PASSWORD"),
-            'tls': True,
-            'tlsCAFile': certifi.where(),
+
         }
     }
 }
