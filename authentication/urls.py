@@ -1,6 +1,7 @@
 from django.urls import path, include
 from . import views
 urlpatterns = [
-    path('_b_a_c_k_e_n_d/Security/login/', views.login_view, name='login'),
-    path('_b_a_c_k_e_n_d/Security/get_modules/', views.getmodules, name='getmodules'),
+    path('login/', views.login_view, name='login'),
+    path('get_modules/', views.getmodules, name='getmodules'),
+    path('get_data_entitlements', views.get_data_entitlements, name='get_data_entitlements'),
 ]
