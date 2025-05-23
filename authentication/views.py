@@ -140,3 +140,21 @@ def getmodules(request):
     
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+from django.http import JsonResponse
+from pymongo import MongoClient
+import os
+def get_data_entitlements(request):
+    client = MongoClient(os.getenv('GLOBAL_DB_HOST'))
+    db = client[os.getenv('GLOBAL_DB_NAME')]
+    collection = db['backend_diagnostics_DataEntitlements']
+    # Get allowed branch codes from request parameters (e.g., ?branchCodes=SHB001,ABC123)
+    branch_codes = request.GET.get('branchCodes', '')
+    branch_code_list = branch_codes.split(',') if branch_codes else []
+    # Filter by DataEntitlementsCode if provided
+    query = {'DataEntitlementsCode': {'$in': branch_code_list}} if branch_code_list else {}
+    # Fetch matched entries excluding _id
+    data_entitlements = collection.find(query, {'_id': 0, 'DataEntitlementsCode': 1, 'DataEntitlements': 1})
+    # Convert cursor to list
+    entitlements_list = list(data_entitlements)
+    return JsonResponse({'dataEntitlements': entitlements_list})
