@@ -125,9 +125,7 @@ def login_view(request):
 from django.http import JsonResponse
 from pymongo import MongoClient
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
 
 def getmodules(request):
     try:
