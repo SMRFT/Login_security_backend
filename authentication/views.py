@@ -110,7 +110,9 @@ def login_view(request):
     token_vals = {
         'aud': employee_id, 
         'email': user_profile['emailId'], 
+        'employeeId': user_profile['employeeId'], 
         'name': user_profile['name'], 
+        'role_name': role_data.get('role_name'),
         'allowed-actions': unique_permissions, 
         'allowed-data': user_profile['dataEntitlements']
     }
