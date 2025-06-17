@@ -63,12 +63,17 @@ def login_view(request):
     # Handle additionalRoles and dataEntitlements which are stored as JSON strings
     try:
         if profile_data.get('additionalRoles'):
-            user_profile['additionalRoles'] = json.loads(profile_data.get('additionalRoles', '[]'))
+            user_profile['additionalRoles'] = (
+    profile_data.get('additionalRoles') if isinstance(profile_data.get('additionalRoles'), list) else []
+)
         else:
             user_profile['additionalRoles'] = []
             
         if profile_data.get('dataEntitlements'):
-            user_profile['dataEntitlements'] = json.loads(profile_data.get('dataEntitlements', '[]'))
+            user_profile['dataEntitlements'] = (
+    profile_data.get('dataEntitlements') if isinstance(profile_data.get('dataEntitlements'), list) else []
+)
+
         else:
             user_profile['dataEntitlements'] = []
     except json.JSONDecodeError:
