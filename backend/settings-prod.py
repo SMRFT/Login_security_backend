@@ -84,7 +84,7 @@ import os
 DATABASES = {
     'default': {
         'ENGINE': 'djongo',
-        'NAME': os.getenv("GLOBAL_DB_NAME"),
+        'NAME': os.getenv("GLOBAL_DB_NAME","Global"),
         'ENFORCE_SCHEMA': False,
         'CLIENT': {
             'host': os.getenv("GLOBAL_DB_HOST"),
