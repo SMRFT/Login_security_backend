@@ -2,9 +2,8 @@ import jwt
 import os
 import base64
 import time
-import datetime
 import uuid
-import jwt
+from datetime import datetime
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
 
@@ -16,9 +15,11 @@ ISSUER_KEY =  'iss'
 ISSUER_VALUE =  'https://lab.shinova.in/'
 ISSUED_AT_KEY = "iat"
 EXPIRES_AT_KEY = "exp"
-EXPIRY_DURATION_MINS = 1440 #24 Hours
+EXPIRY_DURATION_MINS = 1440  # 24 hours
 TOKEN_ID_KEY = "jti"
+CLOCK_SKEW_SECONDS = 300     # ±5 minutes
 
+# Read and combine private key parts
 _pk_B64 = ''
 for n in PRIVATE_KEY_NAMES:
     try:
@@ -28,7 +29,6 @@ for n in PRIVATE_KEY_NAMES:
         print(f"Private key part {n} is not set... skipping")
     except:
         raise ValueError(f'Unable to read private key part {n} of ({PRIVATE_KEY_NAMES})')
-    
 
 if not _pk_B64:
     raise ValueError(f'Private key ({PRIVATE_KEY_NAMES}) not set')
@@ -40,21 +40,20 @@ _pk_pass = base64.b64decode(_pk_pass_B64)
 PRIVATE_KEY = serialization.load_pem_private_key(
     _pk, password=_pk_pass, backend=default_backend())
 
-def createJwt(values:dict):
+# JWT creation with ±5 min tolerance
+def createJwt(values: dict):
     for i, k in enumerate(REQUIRED_KEYS):
         if k not in values:
             raise ValueError(f'Values does not contain {k}', k)
-        if type(values[k]).__name__ !=  REQUIRED_KEYS_TYPES[i]:
+        if type(values[k]).__name__ != REQUIRED_KEYS_TYPES[i]:
             raise ValueError(f'Values does not contain {k} in the correct format', k)
 
     payload = values.copy()
     payload[ISSUER_KEY] = ISSUER_VALUE
 
-    ct = round(time.time()-1)
-    payload[ISSUED_AT_KEY] = ct
-    payload[EXPIRES_AT_KEY] = ct + (EXPIRY_DURATION_MINS * 60) 
-
+    now = int(time.time())
+    payload[ISSUED_AT_KEY] = now - CLOCK_SKEW_SECONDS     # issued 5 mins ago
+    payload[EXPIRES_AT_KEY] = now + (EXPIRY_DURATION_MINS * 60) + CLOCK_SKEW_SECONDS  # expires in 24hr + 5 mins
     payload[TOKEN_ID_KEY] = str(uuid.uuid4())
 
     return jwt.encode(payload, PRIVATE_KEY, algorithm="RS256")
-
