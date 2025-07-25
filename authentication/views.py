@@ -130,7 +130,9 @@ def login_view(request):
 from django.http import JsonResponse
 from pymongo import MongoClient
 import os
+from dotenv import load_dotenv
 
+load_dotenv()
 
 def getmodules(request):
     try:
@@ -162,4 +164,6 @@ def get_data_entitlements(request):
     data_entitlements = collection.find(query, {'_id': 0, 'DataEntitlementsCode': 1, 'DataEntitlements': 1})
     # Convert cursor to list
     entitlements_list = list(data_entitlements)
+
     return JsonResponse({'dataEntitlements': entitlements_list})
+
