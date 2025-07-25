@@ -148,7 +148,6 @@ def getmodules(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
-
 from django.http import JsonResponse
 from pymongo import MongoClient
 import os
@@ -165,4 +164,6 @@ def get_data_entitlements(request):
     data_entitlements = collection.find(query, {'_id': 0, 'DataEntitlementsCode': 1, 'DataEntitlements': 1})
     # Convert cursor to list
     entitlements_list = list(data_entitlements)
+
     return JsonResponse({'dataEntitlements': entitlements_list})
+

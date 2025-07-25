@@ -27,7 +27,7 @@ SECRET_KEY = 'django-insecure-z&lr(&27n%a#wu6fgn9t50z@m$t1b1ez5+m#8hm(xij4+o9yju
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['shinova.in']
 
 
 # Application definition
@@ -84,7 +84,7 @@ import os
 DATABASES = {
     'default': {
         'ENGINE': 'djongo',
-        'NAME': os.getenv("GLOBAL_DB_NAME"),
+        'NAME': os.getenv("GLOBAL_DB_NAME","Global"),
         'ENFORCE_SCHEMA': False,
         'CLIENT': {
             'host': os.getenv("GLOBAL_DB_HOST"),
