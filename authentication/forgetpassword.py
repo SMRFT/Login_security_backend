@@ -9,7 +9,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 from pymongo import MongoClient
 import json
-
+from urllib.parse import urlencode
 # MongoDB connection
 client = MongoClient(os.getenv('GLOBAL_DB_HOST'))
 db = client[os.getenv('GLOBAL_DB_NAME', "Global")]
@@ -53,7 +53,8 @@ def forgot_password(request):
         reset_tokens_collection.insert_one(token_data)
 
         frontend_url = os.getenv('FRONTEND_URL', 'http://127.0.0.1:2102/')
-        reset_link = f"{frontend_url}reset-password?token={reset_token}&employeeId={employee_id}"
+        params = urlencode({"token": reset_token, "employeeId": employee_id})
+        reset_link = f"https://test.shinova.in/reset-password?{params}"
 
         send_password_reset_email(user_email, user.get('name', employee_id), reset_link)
 
