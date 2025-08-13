@@ -53,7 +53,7 @@ def forgot_password(request):
         reset_tokens_collection.insert_one(token_data)
 
         frontend_url = os.getenv('FRONTEND_URL', 'http://127.0.0.1:2102/')
-        reset_link = f"{frontend_url}/reset-password?token={reset_token}&employeeId={employee_id}"
+        reset_link = f"{frontend_url}reset-password?token={reset_token}&employeeId={employee_id}"
 
         send_password_reset_email(user_email, user.get('name', employee_id), reset_link)
 
