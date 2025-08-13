@@ -53,8 +53,7 @@ def forgot_password(request):
         reset_tokens_collection.insert_one(token_data)
 
         frontend_url = os.getenv('FRONTEND_URL', 'http://127.0.0.1:2102/')
-        params = urlencode({"token": reset_token, "employeeId": employee_id})
-        reset_link = f"https://test.shinova.in/reset-password?{params}"
+        reset_link = f"{frontend_url}_b_a_c_k_e_n_d/Security/reset-password?token={reset_token}&employeeId={employee_id}"
 
         send_password_reset_email(user_email, user.get('name', employee_id), reset_link)
 
