@@ -233,31 +233,26 @@ import json
 from datetime import datetime
 from django.utils import timezone
 
-
 empusers_collection = db['backend_diagnostics_user']
 from django.utils import timezone
 import pytz
 
+from datetime import datetime, timedelta, timezone as dt_timezone
+
 @csrf_exempt
 def reset_password(request):
     """Handle both GET (display form) and POST (process form) for password reset"""
-    
+
     if request.method == "GET":
-        # Display the reset password form
         token = request.GET.get('token', '')
         employee_id = request.GET.get('employeeId', '')
 
-        # Validate token exists
         if not token or not employee_id:
-            context = {
-                'token': token,
-                'employeeId': employee_id,
+            return render(request, 'reset_password.html', {
                 'valid_token': False,
                 'error': 'Invalid reset link. Please request a new password reset.'
-            }
-            return render(request, 'reset_password.html', context)
+            })
 
-        # Find token in database
         token_data = reset_tokens_collection.find_one({
             'token': token,
             'employeeId': employee_id,
@@ -265,185 +260,170 @@ def reset_password(request):
         })
 
         if not token_data:
-            context = {
-                'token': token,
-                'employeeId': employee_id,
+            return render(request, 'reset_password.html', {
                 'valid_token': False,
                 'error': 'Invalid or expired reset token. Please request a new password reset.'
-            }
-            return render(request, 'reset_password.html', context)
+            })
 
-        # Check if token is expired
         expires_at = token_data.get('expires_at')
         if expires_at and timezone.is_naive(expires_at):
-            expires_at = expires_at.replace(tzinfo=pytz.UTC)
+            expires_at = expires_at.replace(tzinfo=dt_timezone.utc)
 
         is_valid = expires_at and timezone.now() < expires_at
 
-        context = {
+        return render(request, 'reset_password.html', {
             'token': token,
             'employeeId': employee_id,
             'valid_token': is_valid,
-            'employee_name': users_collection.find_one({'employeeId': employee_id}, {'name': 1}).get('name', employee_id) if is_valid else None
-        }
-
-        return render(request, 'reset_password.html', context)
+            'employee_name': users_collection.find_one(
+                {'employeeId': employee_id}, {'name': 1}
+            ).get('name', employee_id) if is_valid else None
+        })
 
     elif request.method == "POST":
-        # Process the password reset
+        password_reset_successful = False
+        user_details = {}
+        token_email = None
+        
         try:
             token = request.POST.get('token', '').strip()
             employee_id = request.POST.get('employeeId', '').strip()
             new_password = request.POST.get('newPassword', '').strip()
             confirm_password = request.POST.get('confirmPassword', '').strip()
 
-            # Validate required fields
+            # === Validations ===
             if not token or not employee_id or not new_password or not confirm_password:
                 return render(request, 'reset_password.html', {
                     'error': 'All fields are required.',
-                    'token': token,
-                    'employeeId': employee_id,
-                    'valid_token': True
+                    'token': token, 'employeeId': employee_id, 'valid_token': True
                 })
 
-            # Validate password match
             if new_password != confirm_password:
                 return render(request, 'reset_password.html', {
-                    'error': 'Passwords do not match. Please try again.',
-                    'token': token,
-                    'employeeId': employee_id,
-                    'valid_token': True
+                    'error': 'Passwords do not match.',
+                    'token': token, 'employeeId': employee_id, 'valid_token': True
                 })
 
-            # Validate password length
             if len(new_password) < 8:
                 return render(request, 'reset_password.html', {
                     'error': 'Password must be at least 8 characters long.',
-                    'token': token,
-                    'employeeId': employee_id,
-                    'valid_token': True
+                    'token': token, 'employeeId': employee_id, 'valid_token': True
                 })
 
-            # Additional password validation
             if not any(c.isalpha() for c in new_password):
                 return render(request, 'reset_password.html', {
                     'error': 'Password must contain at least one letter.',
-                    'token': token,
-                    'employeeId': employee_id,
-                    'valid_token': True
+                    'token': token, 'employeeId': employee_id, 'valid_token': True
                 })
 
             if not any(c.isdigit() for c in new_password):
                 return render(request, 'reset_password.html', {
                     'error': 'Password must contain at least one number.',
-                    'token': token,
-                    'employeeId': employee_id,
-                    'valid_token': True
+                    'token': token, 'employeeId': employee_id, 'valid_token': True
                 })
 
-            # Find and verify token
+            # === Validate Token ===
             token_data = reset_tokens_collection.find_one({
                 'token': token,
                 'employeeId': employee_id,
                 'used': False
             })
-
             if not token_data:
                 return render(request, 'reset_password.html', {
-                    'error': 'Invalid or expired reset token. Please request a new password reset.',
-                    'token': token,
-                    'employeeId': employee_id,
+                    'error': 'Invalid or expired reset token.',
                     'valid_token': False
                 })
 
-            # Check if token is expired
             expires_at = token_data.get('expires_at')
             if expires_at and timezone.is_naive(expires_at):
-                expires_at = expires_at.replace(tzinfo=pytz.UTC)
+                expires_at = expires_at.replace(tzinfo=dt_timezone.utc)
 
             if timezone.now() > expires_at:
                 return render(request, 'reset_password.html', {
-                    'error': 'Reset token has expired. Please request a new password reset.',
-                    'token': token,
-                    'employeeId': employee_id,
+                    'error': 'Reset token has expired.',
                     'valid_token': False
                 })
 
-            # Hash the new password
+            # Store email for confirmation email
+            token_email = token_data.get('email')
+
+            # === Update Password ===
             hashed_password = make_password(new_password)
 
-            # Update password in the user collection
             update_result = empusers_collection.update_one(
                 {'employeeId': employee_id},
                 {'$set': {
                     'password': hashed_password,
                     'is_password_set': True,
-                    'password_updated_at': timezone.now(),
-                    'updated_at': timezone.now()
+                    'password_updated_at': datetime.now(dt_timezone.utc),
+                    'updated_at': datetime.now(dt_timezone.utc)
                 }}
             )
 
             if update_result.modified_count == 0:
-                # Try updating in the profile collection as backup
                 profile_update = users_collection.update_one(
                     {'employeeId': employee_id},
                     {'$set': {
                         'password': hashed_password,
                         'is_password_set': True,
-                        'password_updated_at': timezone.now(),
-                        'updated_at': timezone.now()
+                        'password_updated_at': datetime.now(dt_timezone.utc),
+                        'updated_at': datetime.now(dt_timezone.utc)
                     }}
                 )
-                
                 if profile_update.modified_count == 0:
                     return render(request, 'reset_password.html', {
-                        'error': 'Failed to update password. Employee record not found. Please contact IT support.',
-                        'token': token,
-                        'employeeId': employee_id,
+                        'error': 'Failed to update password. Please contact IT support.',
                         'valid_token': True
                     })
 
-            # Mark token as used
+            # === Mark token as used ===
             reset_tokens_collection.update_one(
                 {'token': token},
-                {'$set': {
-                    'used': True,
-                    'used_at': timezone.now()
-                }}
+                {'$set': {'used': True, 'used_at': datetime.now(dt_timezone.utc)}}
             )
 
+            password_reset_successful = True
+            
             # Get user details for success page
             user_details = users_collection.find_one(
-                {'employeeId': employee_id}, 
-                {'name': 1, 'email': 1}
-            )
-
-            # Log the successful password reset
-            print(f"Password successfully reset for employee: {employee_id} at {timezone.now()}")
-
-            # Send confirmation email (optional)
-            try:
-                send_password_reset_confirmation_email(
-                    token_data.get('email'), 
-                    user_details.get('name', employee_id) if user_details else employee_id
-                )
-            except Exception as e:
-                print(f"Failed to send confirmation email: {e}")
-
-            # Render success page
-            return render(request, 'reset_success.html', {
-                'employee_name': user_details.get('name', employee_id) if user_details else employee_id,
-                'employee_id': employee_id
-            })
+                {'employeeId': employee_id}, {'name': 1, 'email': 1}
+            ) or {}
 
         except Exception as e:
             print(f"Password reset error: {e}")
-            return render(request, 'reset_password.html', {
-                'error': 'An unexpected error occurred. Please try again later or contact IT support.',
-                'token': request.POST.get('token', ''),
-                'employeeId': request.POST.get('employeeId', ''),
-                'valid_token': True
+            if not password_reset_successful:
+                return render(request, 'reset_password.html', {
+                    'error': 'An unexpected error occurred. Please try again later or contact IT support.',
+                    'token': request.POST.get('token', ''),
+                    'employeeId': request.POST.get('employeeId', ''),
+                    'valid_token': True
+                })
+
+        if password_reset_successful:
+            # Try to send confirmation email, but don't fail if it doesn't work
+            try:
+                if token_email:
+                    send_password_reset_confirmation_email(
+                        token_email,
+                        user_details.get('name', employee_id)
+                    )
+            except Exception as email_error:
+                print(f"Confirmation email failed (but password was reset successfully): {email_error}")
+                # Continue to success page even if email fails
+
+            return render(request, 'reset_success.html', {
+                'employee_name': user_details.get('name', employee_id),
+                'employee_id': employee_id,
+                'success': True,
+                'message': 'Your password has been successfully reset.'
             })
+
+        return render(request, 'reset_password.html', {
+            'error': 'An unexpected error occurred. Please try again later or contact IT support.',
+            'token': request.POST.get('token', ''),
+            'employeeId': request.POST.get('employeeId', ''),
+            'valid_token': True
+        })
 
 def send_password_reset_confirmation_email(email, name):
     """Send confirmation email after successful password reset"""
