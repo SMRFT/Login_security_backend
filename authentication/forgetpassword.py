@@ -52,7 +52,7 @@ def forgot_password(request):
         reset_tokens_collection.delete_many({'employeeId': employee_id})
         reset_tokens_collection.insert_one(token_data)
 
-        frontend_url = os.getenv('FRONTEND_URL', 'http://127.0.0.1:2102/')
+        frontend_url = os.getenv('FRONTEND_URL', 'https://shinova.in/')
         reset_link = f"{frontend_url}_b_a_c_k_e_n_d/Security/reset-password?token={reset_token}&employeeId={employee_id}"
 
         send_password_reset_email(user_email, user.get('name', employee_id), reset_link)
