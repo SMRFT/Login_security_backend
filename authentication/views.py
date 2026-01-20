@@ -50,7 +50,7 @@ def login_view(request):
     # ---------------- PROFILE COLLECTION CHECK ----------------
     profile_data = profile_collection.find_one({
         "employeeId": employee_id,
-        "is_active": True   # ✅ only active profiles
+    
     })
 
     if not profile_data:
@@ -85,7 +85,7 @@ def login_view(request):
     for role_code in all_roles:
         role_data = role_mapping_collection.find_one({
             "role_code": role_code,
-            "is_active": True   # ✅ only active roles
+          
         })
 
         if role_data:
