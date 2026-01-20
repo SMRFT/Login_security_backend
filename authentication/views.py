@@ -25,107 +25,103 @@ def login_view(request):
     if not employee_id or not password:
         return Response({'error': 'Employee ID and password are required'}, status=400)
 
-    # Fetch user from MongoDB authentication collection
-    user_data = auth_collection.find_one({"employeeId": employee_id})
+    # ---------------- AUTH COLLECTION CHECK ----------------
+    user_data = auth_collection.find_one({
+        "employeeId": employee_id,
+        "is_active": True   # ✅ only active users
+    })
 
     if not user_data:
-        return Response({'error': 'Invalid Employee ID'}, status=400)
+        return Response({'error': 'Invalid or inactive Employee ID'}, status=400)
 
     stored_password = user_data.get("password")
 
-    # Debugging output
-    print(f"Stored Hashed Password: {stored_password}")
-    print(f"User Entered Password: {password}")
+    print("Stored Hashed Password:", stored_password)
+    print("User Entered Password:", password)
 
-    # Check if the stored password is hashed in Django format
     if stored_password and stored_password.startswith("pbkdf2_sha256$"):
         password_valid = check_password(password, stored_password)
     else:
-        password_valid = False  # If the password isn't hashed properly, reject login
+        password_valid = False
 
     if not password_valid:
         return Response({'error': 'Invalid Password'}, status=400)
 
-    # Fetch user profile data from profile collection
-    profile_data = profile_collection.find_one({"employeeId": employee_id})
-    
+    # ---------------- PROFILE COLLECTION CHECK ----------------
+    profile_data = profile_collection.find_one({
+        "employeeId": employee_id,
+        "is_active": True   # ✅ only active profiles
+    })
+
     if not profile_data:
-        return Response({'error': 'User profile not found'}, status=400)
-    
-    # Extract required fields from profile
+        return Response({'error': 'User profile not found or inactive'}, status=400)
+
+    # ---------------- BUILD USER PROFILE ----------------
     user_profile = {
         'employeeId': profile_data.get('employeeId'),
         'name': profile_data.get('employeeName'),
         'emailId': profile_data.get('email'),
         'primaryRole': profile_data.get('primaryRole'),
     }
-    
-    # Handle additionalRoles and dataEntitlements which are stored as JSON strings
-    try:
-        if profile_data.get('additionalRoles'):
-            user_profile['additionalRoles'] = (
-    profile_data.get('additionalRoles') if isinstance(profile_data.get('additionalRoles'), list) else []
-)
-        else:
-            user_profile['additionalRoles'] = []
-            
-        if profile_data.get('dataEntitlements'):
-            user_profile['dataEntitlements'] = (
-    profile_data.get('dataEntitlements') if isinstance(profile_data.get('dataEntitlements'), list) else []
-)
 
-        else:
-            user_profile['dataEntitlements'] = []
-    except json.JSONDecodeError:
-        # Fallback if JSON parsing fails
+    # additionalRoles
+    if isinstance(profile_data.get('additionalRoles'), list):
+        user_profile['additionalRoles'] = profile_data.get('additionalRoles')
+    else:
         user_profile['additionalRoles'] = []
+
+    # dataEntitlements
+    if isinstance(profile_data.get('dataEntitlements'), list):
+        user_profile['dataEntitlements'] = profile_data.get('dataEntitlements')
+    else:
         user_profile['dataEntitlements'] = []
 
-    # Combine primaryRole and additionalRoles to get all user roles
+    # ---------------- ROLES & PERMISSIONS ----------------
     all_roles = [user_profile['primaryRole']] + user_profile['additionalRoles']
-    
-    # Get permissions for all roles from the RoleMapping collection
+
     all_permissions = []
     role_details = []
-    
+
     for role_code in all_roles:
-        role_data = role_mapping_collection.find_one({"role_code": role_code})
-        print("role_data:",all_roles)
-      
-        if role_data and role_data.get('is_active', True):
-            # Extract permissions
-            if 'permissions' in role_data and 'allowed' in role_data['permissions']:
-                role_permissions = role_data['permissions']['allowed']
-                all_permissions.extend(role_permissions)
-                
-                # Add role details
-                role_details.append({
-                    'role_code': role_data.get('role_code'),
-                    'role_name': role_data.get('role_name'),
-                    'role_description': role_data.get('role_description')
-                })
-    
-    # Remove duplicate permissions
+        role_data = role_mapping_collection.find_one({
+            "role_code": role_code,
+            "is_active": True   # ✅ only active roles
+        })
+
+        if role_data:
+            if role_data.get('permissions') and role_data['permissions'].get('allowed'):
+                all_permissions.extend(role_data['permissions']['allowed'])
+
+            role_details.append({
+                'role_code': role_data.get('role_code'),
+                'role_name': role_data.get('role_name'),
+                'role_description': role_data.get('role_description')
+            })
+
+    # remove duplicate permissions
     unique_permissions = list(set(all_permissions))
-    
-    # Add permissions to user profile
+
     user_profile['permissions'] = unique_permissions
     user_profile['roleDetails'] = role_details
-    
+
+    # ---------------- JWT TOKEN ----------------
     token_vals = {
-        'aud': employee_id, 
-        'email': user_profile['emailId'], 
-        'name': user_profile['name'], 
-        'allowed-actions': unique_permissions, 
+        'aud': employee_id,
+        'email': user_profile['emailId'],
+        'name': user_profile['name'],
+        'allowed-actions': unique_permissions,
         'allowed-data': user_profile['dataEntitlements']
     }
-    print(token_vals)
+
+    print("JWT Payload:", token_vals)
+
     token = jwt_gen.createJwt(token_vals)
 
-
     return Response({
-        'access_token': token
-    })
+        'success': True,
+        'access_token': token,
+        'user': user_profile
+    }, status=200)
 
 from django.http import JsonResponse
 from pymongo import MongoClient
