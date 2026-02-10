@@ -717,6 +717,84 @@ def m_dashboard_stats(request):
             logger.error(f"Error fetching milestone data: {e}")
             logger.error(traceback.format_exc())
 
+        # --- 6. ER Billing (MongoDB) ---
+        try:
+            # Assuming DB name 'ER_Billing'
+            db_er = client['ER_Billing'] 
+            col_er = db_er['billing_erbilling']
+            
+            # Using same date filter as others
+            er_query = {
+                "date": {"$gte": start_date, "$lt": end_date}
+            }
+            er_bills = list(col_er.find(er_query))
+            
+            # Init stats
+            if "er_billing" not in stats["samples"]["segments"]:
+                stats["samples"]["segments"]["er_billing"] = 0
+            if "er_billing" not in stats["financials"]["gross"]:
+                stats["financials"]["gross"]["er_billing"] = 0
+
+            for bill in er_bills:
+                stats["samples"]["segments"]["er_billing"] += 1
+                stats["samples"]["total"] += 1
+                
+                # Financials
+                total = to_float(bill.get("total"))
+                net = to_float(bill.get("net_amount"))
+                
+                stats["financials"]["gross"]["er_billing"] += total
+                stats["financials"]["net_amount"] += net
+                
+        except Exception as e:
+            logger.error(f"Error fetching ER billing data: {e}")
+            logger.error(traceback.format_exc())
+
+        # --- 7. Employee Stats (Global + HR) ---
+        stats["employee_stats"] = {
+            "total_employees": 0,
+            "male": 0,
+            "female": 0,
+            "attendance_today": 0
+        }
+
+        try:
+            # Global - Profile
+            global_db_name = os.getenv('GLOBAL_DB_NAME')
+            if global_db_name:
+                db_global = client[global_db_name]
+                col_profile = db_global['backend_diagnostics_profile']
+                
+                # Total Employees
+                stats["employee_stats"]["total_employees"] = col_profile.count_documents({})
+                
+                # Gender counts (case-insensitive)
+                stats["employee_stats"]["male"] = col_profile.count_documents({"gender": {"$regex": "^male$", "$options": "i"}})
+                stats["employee_stats"]["female"] = col_profile.count_documents({"gender": {"$regex": "^female$", "$options": "i"}})
+            else:
+                 logger.warning("GLOBAL_DB_NAME not set, skipping employee stats")
+
+            # HR - Attendance
+            db_hr = client['HR']
+            col_attendance = db_hr['employees_employeeattendance']
+            
+            # Attendance Today (server time)
+            attendance_today = timezone.localtime(timezone.now()).date()
+            att_start = datetime.combine(attendance_today, datetime.min.time())
+            att_end = att_start + timedelta(days=1)
+            
+            attendance_query = {
+                "attendence_time": {"$gte": att_start, "$lt": att_end}
+            }
+            
+            # Distinct employees
+            distinct_employees = col_attendance.distinct("employee_id", attendance_query)
+            stats["employee_stats"]["attendance_today"] = len(distinct_employees)
+
+        except Exception as e:
+            logger.error(f"Error fetching Employee/HR stats: {e}")
+            logger.error(traceback.format_exc())
+
         finally:
             client.close()
 
