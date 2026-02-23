@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
+import authentication.jwt_crypter as crypter
 
 PRIVATE_KEY_NAMES =  ['GLOBAL_PRIVATE_KEY', 'GLOBAL_PRIVATE_KEY_PART1', 'GLOBAL_PRIVATE_KEY_PART2', 'GLOBAL_PRIVATE_KEY_PART3']
 PRIVATE_KEY_PASS_NAME =  'GLOBAL_PRIVATE_KEY_PASS'
@@ -18,6 +19,7 @@ EXPIRES_AT_KEY = "exp"
 EXPIRY_DURATION_MINS = 1440  # 24 hours
 TOKEN_ID_KEY = "jti"
 CLOCK_SKEW_SECONDS = 300     # ±5 minutes
+CRYPT_ALGORITHM_KEY = "crypt-alg"
 
 # Read and combine private key parts
 _pk_B64 = ''
@@ -40,6 +42,7 @@ _pk_pass = base64.b64decode(_pk_pass_B64)
 PRIVATE_KEY = serialization.load_pem_private_key(
     _pk, password=_pk_pass, backend=default_backend())
 
+
 # JWT creation with ±5 min tolerance
 def createJwt(values: dict):
     for i, k in enumerate(REQUIRED_KEYS):
@@ -49,6 +52,10 @@ def createJwt(values: dict):
             raise ValueError(f'Values does not contain {k} in the correct format', k)
 
     payload = values.copy()
+    actions = payload['allowed-actions']
+    alg, actionsStrB64 = crypter.crypt(actions)
+    payload['allowed-actions'] = actionsStrB64
+    payload[CRYPT_ALGORITHM_KEY] = alg
     payload[ISSUER_KEY] = ISSUER_VALUE
 
     now = int(time.time())
