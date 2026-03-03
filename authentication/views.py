@@ -116,6 +116,17 @@ def login_view(request):
     print("JWT Payload:", token_vals)
 
     token = jwt_gen.createJwt(token_vals)
+    
+    # Extract the generated JTI (session ID) from the token
+    import jwt
+    unverified = jwt.decode(token, options={"verify_signature": False})
+    jti = unverified.get("jti")
+    
+    # Save the new session's JTI to the MongoDB user document
+    auth_collection.update_one(
+        {"employeeId": employee_id},
+        {"$set": {"active_jti": jti}}
+    )
 
     return Response({
         'success': True,

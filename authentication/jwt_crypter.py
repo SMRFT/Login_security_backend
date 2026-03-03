@@ -24,6 +24,7 @@ def crypt(actions: list[str] = []) -> tuple[str, str]:
  
     # base64 encode the bitmap
     base64BitMap = base64.b64encode(bitMap).decode('utf-8')
+    print("base64BitMap", base64BitMap)
     return CRYPT_ALGORITHM_VALUE, base64BitMap
  
     
@@ -31,6 +32,7 @@ def crypt(actions: list[str] = []) -> tuple[str, str]:
 def decrypt(base64BitMap: str) -> list[str]:
     # decode base64 to bytes
     bitMap = base64.b64decode(base64BitMap.encode('utf-8'))
+    print("bitMap", bitMap)
     actions = []
     
     # reverse the bitmap to get actions

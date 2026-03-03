@@ -54,6 +54,8 @@ def createJwt(values: dict):
     payload = values.copy()
     actions = payload['allowed-actions']
     alg, actionsStrB64 = crypter.crypt(actions)
+    print("actions", actions)
+    print("actionsStrB64", actionsStrB64)
     payload['allowed-actions'] = actionsStrB64
     payload[CRYPT_ALGORITHM_KEY] = alg
     payload[ISSUER_KEY] = ISSUER_VALUE
