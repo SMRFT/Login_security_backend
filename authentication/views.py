@@ -110,7 +110,8 @@ def login_view(request):
         'email': user_profile['emailId'],
         'name': user_profile['name'],
         'allowed-actions': unique_permissions,
-        'allowed-data': user_profile['dataEntitlements']
+        'allowed-data': user_profile['dataEntitlements'],
+        "hospital_code":"SH001"
     }
 
     print("JWT Payload:", token_vals)
