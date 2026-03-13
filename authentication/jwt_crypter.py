@@ -7,7 +7,8 @@ perms_hash  = ""
 # read file permisions.txt and create a list of permissions
 with open('auth/permissions_master.lst', 'r') as f:
     permissions = [line.strip() for line in f.readlines()]
-    perms_hash = str(hash(''.join(permissions)))
+
+perms_hash = str(hash(''.join(permissions)))
 
 
 def crypt(actions: list[str] = []) -> tuple[str, str]:
