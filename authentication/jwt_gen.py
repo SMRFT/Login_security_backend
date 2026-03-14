@@ -19,6 +19,7 @@ EXPIRES_AT_KEY = "exp"
 EXPIRY_DURATION_MINS = 1440  # 24 hours
 CLOCK_SKEW_SECONDS = 300     # ±5 minutes
 CRYPT_ALGORITHM_KEY = "crypt-alg"
+CRYPT_HASH_KEY = "crypt-hash"
 
 # Read and combine private key parts
 _pk_B64 = ''
@@ -57,6 +58,7 @@ def createJwt(values: dict):
     print("actionsStrB64", actionsStrB64)
     payload['allowed-actions'] = actionsStrB64
     payload[CRYPT_ALGORITHM_KEY] = alg
+    payload[CRYPT_HASH_KEY] = crypter.hash()
     payload[ISSUER_KEY] = ISSUER_VALUE
 
     now = int(time.time())
