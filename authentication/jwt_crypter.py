@@ -1,11 +1,20 @@
-import base64
+import base64, os
 
 CRYPT_ALGORITHM_VALUE = "bit_map"
 
 permissions = []
-# read file permisions.txt and create a list of permissions
-with open('auth/permissions_master.lst', 'r') as f:
+perms_hash  = ""
+
+pmv = os.environ.get('PERMISSIONS_MASTER_VERSION', '')
+pmfn = f'auth/permissions_master_{pmv}.lst' if pmv else 'auth/permissions_master.lst'
+if not os.path.exists(pmfn):
+    pmv = ''
+    pmfn = 'auth/permissions_master.lst'
+
+with open(pmfn, 'r') as f:
     permissions = [line.strip() for line in f.readlines()]
+perms_hash = str(hash(''.join(permissions)))
+
 
 def crypt(actions: list[str] = []) -> tuple[str, str]:
     bitMap = bytes(128)
@@ -44,4 +53,8 @@ def decrypt(base64BitMap: str) -> list[str]:
 
     return actions
 
+def hash() -> str:
+    return perms_hash
 
+def ver() -> str:
+    return pmv

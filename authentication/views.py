@@ -17,6 +17,15 @@ auth_collection = db['backend_diagnostics_user']
 profile_collection = db['backend_diagnostics_profile']
 role_mapping_collection = db['backend_diagnostics_RoleMapping']
 
+@api_view(['GET'])
+def get_permissions(request):
+    try:
+        with open('auth/permissions_master.lst', 'r') as f:
+            permissions = [line.strip() for line in f.readlines() if line.strip()]
+        return Response({'permissions': permissions})
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
 @api_view(['POST'])
 def login_view(request):
     employee_id = request.data.get('employeeId')
@@ -36,8 +45,8 @@ def login_view(request):
 
     stored_password = user_data.get("password")
 
-    print("Stored Hashed Password:", stored_password)
-    print("User Entered Password:", password)
+    # print("Stored Hashed Password:", stored_password)
+    # print("User Entered Password:", password)
 
     if stored_password and stored_password.startswith("pbkdf2_sha256$"):
         password_valid = check_password(password, stored_password)
@@ -110,23 +119,13 @@ def login_view(request):
         'email': user_profile['emailId'],
         'name': user_profile['name'],
         'allowed-actions': unique_permissions,
-        'allowed-data': user_profile['dataEntitlements']
+        'allowed-data': user_profile['dataEntitlements'],
+        "hospital_code":"SH001"
     }
 
     print("JWT Payload:", token_vals)
 
     token = jwt_gen.createJwt(token_vals)
-    
-    # Extract the generated JTI (session ID) from the token
-    import jwt
-    unverified = jwt.decode(token, options={"verify_signature": False})
-    jti = unverified.get("jti")
-    
-    # Save the new session's JTI to the MongoDB user document
-    auth_collection.update_one(
-        {"employeeId": employee_id},
-        {"$set": {"active_jti": jti}}
-    )
 
     return Response({
         'success': True,

@@ -10,16 +10,15 @@ import authentication.jwt_crypter as crypter
 
 PRIVATE_KEY_NAMES =  ['GLOBAL_PRIVATE_KEY', 'GLOBAL_PRIVATE_KEY_PART1', 'GLOBAL_PRIVATE_KEY_PART2', 'GLOBAL_PRIVATE_KEY_PART3']
 PRIVATE_KEY_PASS_NAME =  'GLOBAL_PRIVATE_KEY_PASS'
-REQUIRED_KEYS =  ['aud', 'email', 'name', 'allowed-actions', 'allowed-data']
-REQUIRED_KEYS_TYPES =  ['str', 'str', 'str', 'list', 'list']
+REQUIRED_KEYS =  ['aud', 'email', 'name', 'allowed-actions', 'allowed-data', 'hospital_code']
+REQUIRED_KEYS_TYPES =  ['str', 'str', 'str', 'list', 'list', 'str']
 ISSUER_KEY =  'iss'
 ISSUER_VALUE =  'https://lab.shinova.in/'
 ISSUED_AT_KEY = "iat"
 EXPIRES_AT_KEY = "exp"
 EXPIRY_DURATION_MINS = 1440  # 24 hours
-TOKEN_ID_KEY = "jti"
 CLOCK_SKEW_SECONDS = 300     # ±5 minutes
-CRYPT_ALGORITHM_KEY = "crypt-alg"
+CRYPT_KEY = "crypt"
 
 # Read and combine private key parts
 _pk_B64 = ''
@@ -57,12 +56,11 @@ def createJwt(values: dict):
     print("actions", actions)
     print("actionsStrB64", actionsStrB64)
     payload['allowed-actions'] = actionsStrB64
-    payload[CRYPT_ALGORITHM_KEY] = alg
+    payload[CRYPT_KEY] = f'{alg}:'+crypter.ver()+':'+crypter.hash()
     payload[ISSUER_KEY] = ISSUER_VALUE
 
     now = int(time.time())
     payload[ISSUED_AT_KEY] = now - CLOCK_SKEW_SECONDS     # issued 5 mins ago
     payload[EXPIRES_AT_KEY] = now + (EXPIRY_DURATION_MINS * 60) + CLOCK_SKEW_SECONDS  # expires in 24hr + 5 mins
-    payload[TOKEN_ID_KEY] = str(uuid.uuid4())
 
     return jwt.encode(payload, PRIVATE_KEY, algorithm="RS256")
