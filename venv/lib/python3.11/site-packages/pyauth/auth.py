@@ -1,11 +1,13 @@
 from rest_framework import permissions
 from .jwt_check import isSecurityDisabled, checkAccess, checkAccessForData, checkAccessForPageAction
-from .jwt_check import AUD_KEY, NAME_KEY, EMAIL_KEY, PAGE_KEY, ACTION_KEY, PERMISSION_KEY, ALLOWED_ACTIONS_KEY, ALLOWED_DATA_KEY
+from .jwt_check import AUD_KEY, NAME_KEY, EMAIL_KEY, PAGE_KEY, ACTION_KEY, PERMISSION_KEY, ALLOWED_ACTIONS_KEY, ALLOWED_DATA_KEY, HOSPITAL_CODE_KEY
+
 
 AUTH_USERID_KEY =  'auth-user-id'
 AUTH_USERNAME_KEY =  'auth-user-name'
 AUTH_USEREMAIL_KEY =  'auth-user-email'
 #AUTH_USERROLE_KEY =  'auth-user-role'
+AUTH_HOSPITAL_CODE_KEY =  'auth-hospital-code'
 AUTH_BRANCH_CODE_KEY =  'auth-branch-code'
 AUTH_PAGE_ID_KEY =  'auth-page-id'
 AUTH_ACTION_ID_KEY =  'auth-action-id'
@@ -25,6 +27,7 @@ def _set_auth_data(request, authorizedTokenData, authorizedBranch):
     request.data[AUTH_USEREMAIL_KEY] = authorizedTokenData[EMAIL_KEY]
     #request.data[AUTH_USERROLE_KEY] = authorizedTokenData[ROLE_KEY]
     request.data[AUTH_BRANCH_CODE_KEY] = authorizedBranch
+    request.data[AUTH_HOSPITAL_CODE_KEY] = authorizedTokenData[HOSPITAL_CODE_KEY]
     request.data[AUTH_PAGE_ID_KEY] = authorizedTokenData[PAGE_KEY]
     request.data[AUTH_ACTION_ID_KEY] = authorizedTokenData[ACTION_KEY]
     request.data[AUTH_PERMISSION_ID_KEY] = authorizedTokenData[PERMISSION_KEY]
