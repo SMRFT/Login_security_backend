@@ -1,11 +1,23 @@
 import base64
+import os
+import requests
 
 CRYPT_ALGORITHM_VALUE = "bit_map"
+env = os.getenv('ENV_CLASSIFICATION')
+permsEnv = f"prod" if env == "prod" else "test"
+PERMS_BASE_URL = "https://raw.githubusercontent.com/SMRFT/Permissions_master/refs/heads/"+permsEnv+"/auth/permissions_master"
+PERMS_EXT = ".lst"
+permsVer = os.getenv('PERMISSIONS_MASTER_VERSION', '')
 
-permissions = []
-# read file permisions.txt and create a list of permissions
-with open('auth/permissions_master.lst', 'r') as f:
-    permissions = [line.strip() for line in f.readlines()]
+
+fullUrl = f"{PERMS_BASE_URL}_{permsVer}{PERMS_EXT}" if permsVer else f"{PERMS_BASE_URL}{PERMS_EXT}"
+
+response = requests.get(fullUrl)
+if response.status_code != 200:
+    raise ValueError(f'Failed to retrieve permissions file: {fullUrl}')
+
+permissions = [line.strip() for line in response.text.splitlines()]
+perms_hash = str(hash(''.join(permissions)))
 
 def crypt(actions: list[str] = []) -> tuple[str, str]:
     bitMap = bytes(128)
@@ -21,18 +33,16 @@ def crypt(actions: list[str] = []) -> tuple[str, str]:
         #set bit position to 1
         currentByte = bitMap[bytePosition]
         bitMap = bitMap[:bytePosition] + bytes([currentByte | (1 << (7 - bitPosition))]) + bitMap[bytePosition+1:]  
- 
-    # base64 encode the bitmap
+     # base64 encode the bitmap
     base64BitMap = base64.b64encode(bitMap).decode('utf-8')
-    print("base64BitMap", base64BitMap)
-    return CRYPT_ALGORITHM_VALUE, base64BitMap
+    crypy = f"{permsEnv}:{CRYPT_ALGORITHM_VALUE}:{permsVer}:{perms_hash}"
+    return crypy, base64BitMap
  
     
 
 def decrypt(base64BitMap: str) -> list[str]:
     # decode base64 to bytes
     bitMap = base64.b64decode(base64BitMap.encode('utf-8'))
-    print("bitMap", bitMap)
     actions = []
     
     # reverse the bitmap to get actions
