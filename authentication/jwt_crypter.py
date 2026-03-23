@@ -36,8 +36,8 @@ def crypt(actions: list[str] = []) -> tuple[str, str]:
         bitMap = bitMap[:bytePosition] + bytes([currentByte | (1 << (7 - bitPosition))]) + bitMap[bytePosition+1:]  
      # base64 encode the bitmap
     base64BitMap = base64.b64encode(bitMap).decode('utf-8')
-    crypy = f"{permsEnv}:{CRYPT_ALGORITHM_VALUE}:{permsVer}:{perms_hash}"
-    return crypy, base64BitMap
+    crypt = f"{permsEnv}:{CRYPT_ALGORITHM_VALUE}:{permsVer}:{perms_hash}"
+    return crypt, base64BitMap
  
     
 
