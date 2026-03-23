@@ -1,6 +1,7 @@
 import base64
 import os
 import requests
+import hashlib
 
 CRYPT_ALGORITHM_VALUE = "bit_map"
 env = os.getenv('ENV_CLASSIFICATION')
@@ -17,7 +18,7 @@ if response.status_code != 200:
     raise ValueError(f'Failed to retrieve permissions file: {fullUrl}')
 
 permissions = [line.strip() for line in response.text.splitlines()]
-perms_hash = str(hash(''.join(permissions)))
+perms_hash = hashlib.sha256(''.join(permissions).encode()).hexdigest()
 
 def crypt(actions: list[str] = []) -> tuple[str, str]:
     bitMap = bytes(128)
