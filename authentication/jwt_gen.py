@@ -18,7 +18,7 @@ ISSUED_AT_KEY = "iat"
 EXPIRES_AT_KEY = "exp"
 EXPIRY_DURATION_MINS = 1440  # 24 hours
 CLOCK_SKEW_SECONDS = 300     # ±5 minutes
-CRYPT_KEY = "crypt"
+CRYPT_CLAIM_KEY = "crypt"
 
 # Read and combine private key parts
 _pk_B64 = ''
@@ -52,11 +52,9 @@ def createJwt(values: dict):
 
     payload = values.copy()
     actions = payload['allowed-actions']
-    alg, actionsStrB64 = crypter.crypt(actions)
-    print("actions", actions)
-    print("actionsStrB64", actionsStrB64)
+    crypt, actionsStrB64 = crypter.crypt(actions)
     payload['allowed-actions'] = actionsStrB64
-    payload[CRYPT_KEY] = f'{alg}:'+crypter.ver()+':'+crypter.hash()
+    payload[CRYPT_CLAIM_KEY] = crypt
     payload[ISSUER_KEY] = ISSUER_VALUE
 
     now = int(time.time())
