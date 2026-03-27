@@ -20,6 +20,17 @@ EXPIRY_DURATION_MINS = 1440  # 24 hours
 CLOCK_SKEW_SECONDS = 300     # ±5 minutes
 CRYPT_CLAIM_KEY = "crypt"
 
+bitmapMinThreshold = os.getenv('BITMAP_MIN_THRESHOLD', '200')
+
+# convert to int and validate
+try:
+    bitmapMinThreshold = int(bitmapMinThreshold) 
+except ValueError:
+    print(f"Bitmap permissions count threshold is not a valid integer: {bitmapMinThreshold}. Defaulting to 200.")
+    bitmapMinThreshold = 200
+
+
+
 # Read and combine private key parts
 _pk_B64 = ''
 for n in PRIVATE_KEY_NAMES:
@@ -52,9 +63,17 @@ def createJwt(values: dict):
 
     payload = values.copy()
     actions = payload['allowed-actions']
-    crypt, actionsStrB64 = crypter.crypt(actions)
-    payload['allowed-actions'] = actionsStrB64
-    payload[CRYPT_CLAIM_KEY] = crypt
+
+    payload['allowed-outlets'] = crypter.getAllowedOutlets(actions)
+
+    if len(actions) > bitmapMinThreshold:
+        print(f"Number of allowed actions ({len(actions)}) exceeds bitmap threshold ({bitmapMinThreshold}), using bitmap encoding")
+        crypt, actionsStrB64 = crypter.crypt(actions)
+        payload['allowed-actions'] = actionsStrB64
+        payload[CRYPT_CLAIM_KEY] = crypt
+    else:
+        print(f"Number of allowed actions ({len(actions)}) is within bitmap threshold ({bitmapMinThreshold}), using direct encoding")
+    
     payload[ISSUER_KEY] = ISSUER_VALUE
 
     now = int(time.time())
