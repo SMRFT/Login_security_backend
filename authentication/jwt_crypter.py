@@ -11,7 +11,7 @@ PERMS_EXT = ".lst"
 permsVer = os.getenv('PERMISSIONS_MASTER_VERSION', '')
 fullUrl = f"{PERMS_BASE_URL}_{permsVer}{PERMS_EXT}" if permsVer else f"{PERMS_BASE_URL}{PERMS_EXT}"
 
-OUTET_BASE_URL = "https://raw.githubusercontent.com/SMRFT/Permissions_master/refs/heads/"+permsEnv+"/auth/outlets_master"
+OUTET_BASE_URL = "https://raw.githubusercontent.com/SMRFT/Permissions_master/"+permsEnv+"/auth/outlets_master"
 OUTLET_EXT = ".json"
 permsVer = os.getenv('OUTLET_MASTER_VERSION', '')
 outletFullUrl = f"{OUTET_BASE_URL}_{permsVer}{OUTLET_EXT}" if permsVer else f"{OUTET_BASE_URL}{OUTLET_EXT}"
@@ -21,16 +21,20 @@ response = requests.get(fullUrl)
 if response.status_code != 200:
     raise ValueError(f'Failed to retrieve permissions file: {fullUrl}')
 permissions = [line.strip() for line in response.text.splitlines()]
+print("permissions",permissions)
 perms_hash = hashlib.sha256(''.join(permissions).encode()).hexdigest()
 
 response = requests.get(outletFullUrl)
+print("response",response)
 if response.status_code != 200:
     raise ValueError(f'Failed to retrieve outlet file: {outletFullUrl}')
 
 outlets = response.json()
+print("outlets",outlets)
 
 def getAllowedOutlets(actions: list[str] = []) -> list[str]:
     allowed_outlets = set()
+    print("actions",actions)
     for outlet, outlet_actions in outlets.items():
         if any(action in actions for action in outlet_actions):
             allowed_outlets.add(outlet)

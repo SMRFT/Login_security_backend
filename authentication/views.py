@@ -71,6 +71,7 @@ def login_view(request):
         'name': profile_data.get('employeeName'),
         'emailId': profile_data.get('email'),
         'primaryRole': profile_data.get('primaryRole'),
+        'hospitalCode': profile_data.get('hospitalCode'),
     }
 
     # additionalRoles
@@ -120,7 +121,7 @@ def login_view(request):
         'name': user_profile['name'],
         'allowed-actions': unique_permissions,
         'allowed-data': user_profile['dataEntitlements'],
-        "hospital_code":"SH001"
+        "hospital_code":user_profile['hospitalCode']
     }
 
     print("JWT Payload:", token_vals)
