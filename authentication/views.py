@@ -72,6 +72,7 @@ def login_view(request):
         'emailId': profile_data.get('email'),
         'primaryRole': profile_data.get('primaryRole'),
         'hospitalCode': profile_data.get('hospitalCode'),
+        'hms_pages': profile_data.get('hms_pages'),
     }
 
     # additionalRoles
@@ -108,6 +109,22 @@ def login_view(request):
                 'role_description': role_data.get('role_description')
             })
 
+    # ------------- HMS PAGES PERMISSIONS -------------
+    hms_pages = user_profile.get('hms_pages')
+    if hms_pages and isinstance(hms_pages, list):
+        try:
+            hms_db = client['HMS']
+            hms_pagemapping_col = hms_db['frontendendpagemapping']
+            hms_mappings = hms_pagemapping_col.find({"pages.page_id": {"$in": hms_pages}})
+            for doc in hms_mappings:
+                for page in doc.get('pages', []):
+                    if page.get('page_id') in hms_pages:
+                        page_perms = page.get('permissions', [])
+                        if isinstance(page_perms, list):
+                            all_permissions.extend(page_perms)
+        except Exception as e:
+            print(f"Error fetching HMS pages permissions: {e}")
+
     # remove duplicate permissions
     unique_permissions = list(set(all_permissions))
 
@@ -121,7 +138,8 @@ def login_view(request):
         'name': user_profile['name'],
         'allowed-actions': unique_permissions,
         'allowed-data': user_profile['dataEntitlements'],
-        "hospital_code":user_profile['hospitalCode']
+        "hospital_code":user_profile['hospitalCode'],
+        "hms_pages":user_profile['hms_pages']
     }
 
     print("JWT Payload:", token_vals)
