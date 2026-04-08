@@ -71,7 +71,7 @@ def login_view(request):
         'hms_pages': profile_data.get('hms_pages', []),
         'hms_outlets': profile_data.get('hms_outlets', []),
     }
-
+    print("user_profile",profile_data.get('hms_outlets', []))
     # additionalRoles
     user_profile['additionalRoles'] = profile_data.get('additionalRoles') if isinstance(profile_data.get('additionalRoles'), list) else []
 
