@@ -34,19 +34,16 @@ def login_view(request):
     if not employee_id or not password:
         return Response({'error': 'Employee ID and password are required'}, status=400)
 
-    # ---------------- AUTH COLLECTION CHECK ----------------
+    # ---------------- AUTH CHECK ----------------
     user_data = auth_collection.find_one({
         "employeeId": employee_id,
-        "is_active": True   # ✅ only active users
+        "is_active": True
     })
 
     if not user_data:
         return Response({'error': 'Invalid or inactive Employee ID'}, status=400)
 
     stored_password = user_data.get("password")
-
-    # print("Stored Hashed Password:", stored_password)
-    # print("User Entered Password:", password)
 
     if stored_password and stored_password.startswith("pbkdf2_sha256$"):
         password_valid = check_password(password, stored_password)
@@ -56,36 +53,38 @@ def login_view(request):
     if not password_valid:
         return Response({'error': 'Invalid Password'}, status=400)
 
-    # ---------------- PROFILE COLLECTION CHECK ----------------
+    # ---------------- PROFILE CHECK ----------------
     profile_data = profile_collection.find_one({
         "employeeId": employee_id,
-    
     })
 
     if not profile_data:
-        return Response({'error': 'User profile not found or inactive'}, status=400)
+        return Response({'error': 'User profile not found'}, status=400)
 
-    # ---------------- BUILD USER PROFILE ----------------
+    # ---------------- BUILD PROFILE ----------------
     user_profile = {
         'employeeId': profile_data.get('employeeId'),
         'name': profile_data.get('employeeName'),
         'emailId': profile_data.get('email'),
         'primaryRole': profile_data.get('primaryRole'),
         'hospitalCode': profile_data.get('hospitalCode'),
-        'hms_pages': profile_data.get('hms_pages'),
+        'hms_pages': profile_data.get('hms_pages', []),
+        'hms_outlets': profile_data.get('hms_outlets', []),
     }
 
     # additionalRoles
-    if isinstance(profile_data.get('additionalRoles'), list):
-        user_profile['additionalRoles'] = profile_data.get('additionalRoles')
-    else:
-        user_profile['additionalRoles'] = []
+    user_profile['additionalRoles'] = profile_data.get('additionalRoles') if isinstance(profile_data.get('additionalRoles'), list) else []
 
     # dataEntitlements
-    if isinstance(profile_data.get('dataEntitlements'), list):
-        user_profile['dataEntitlements'] = profile_data.get('dataEntitlements')
-    else:
-        user_profile['dataEntitlements'] = []
+    user_profile['dataEntitlements'] = profile_data.get('dataEntitlements') if isinstance(profile_data.get('dataEntitlements'), list) else []
+
+    # allowed_pages (IMPORTANT FIX)
+    allowed_pages_raw = profile_data.get('allowed_pages', [])
+    allowed_pages_list = []
+    if isinstance(allowed_pages_raw, list):
+        allowed_pages_list = allowed_pages_raw
+    elif isinstance(allowed_pages_raw, dict):
+        allowed_pages_list = list(allowed_pages_raw.values())
 
     # ---------------- ROLES & PERMISSIONS ----------------
     all_roles = [user_profile['primaryRole']] + user_profile['additionalRoles']
@@ -96,12 +95,12 @@ def login_view(request):
     for role_code in all_roles:
         role_data = role_mapping_collection.find_one({
             "role_code": role_code,
-          
         })
 
         if role_data:
-            if role_data.get('permissions') and role_data['permissions'].get('allowed'):
-                all_permissions.extend(role_data['permissions']['allowed'])
+            perms = role_data.get('permissions', {}).get('allowed', [])
+            if isinstance(perms, list):
+                all_permissions.extend(perms)
 
             role_details.append({
                 'role_code': role_data.get('role_code'),
@@ -109,26 +108,39 @@ def login_view(request):
                 'role_description': role_data.get('role_description')
             })
 
-    # ------------- HMS PAGES PERMISSIONS -------------
+    # ---------------- HMS PAGE PERMISSIONS ----------------
     hms_pages = user_profile.get('hms_pages')
-    if hms_pages and isinstance(hms_pages, list):
+
+    if hms_pages:
         try:
             hms_db = client['HMS']
             hms_pagemapping_col = hms_db['frontendendpagemapping']
-            hms_mappings = hms_pagemapping_col.find({"pages.page_id": {"$in": hms_pages}})
+
+            hms_mappings = hms_pagemapping_col.find({
+                "pages.page_id": {"$in": hms_pages}
+            })
+
             for doc in hms_mappings:
                 for page in doc.get('pages', []):
                     if page.get('page_id') in hms_pages:
                         page_perms = page.get('permissions', [])
                         if isinstance(page_perms, list):
                             all_permissions.extend(page_perms)
+
         except Exception as e:
             print(f"Error fetching HMS pages permissions: {e}")
 
-    # remove duplicate permissions
-    unique_permissions = list(set(all_permissions))
+    # ---------------- FINAL MERGE (🔥 IMPORTANT) ----------------
+    # Combine:
+    # 1. Role permissions
+    # 2. HMS page permissions
+    # 3. allowed_pages
 
-    user_profile['permissions'] = unique_permissions
+    final_permissions = list(set(all_permissions + allowed_pages_list))
+
+    # ---------------- FINAL PROFILE ----------------
+    user_profile['permissions'] = final_permissions
+    user_profile['allowed_pages'] = allowed_pages_list
     user_profile['roleDetails'] = role_details
 
     # ---------------- JWT TOKEN ----------------
@@ -136,10 +148,11 @@ def login_view(request):
         'aud': employee_id,
         'email': user_profile['emailId'],
         'name': user_profile['name'],
-        'allowed-actions': unique_permissions,
+        'allowed-actions': final_permissions,   # ✅ includes allowed_pages
         'allowed-data': user_profile['dataEntitlements'],
-        "hospital_code":user_profile['hospitalCode'],
-        "hms_pages":user_profile['hms_pages']
+        'hospital_code': user_profile['hospitalCode'],
+        'hms_pages': user_profile['hms_pages'],
+        'hms_outlets': user_profile['hms_outlets']
     }
 
     print("JWT Payload:", token_vals)
