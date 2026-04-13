@@ -10,8 +10,8 @@ import authentication.jwt_crypter as crypter
 
 PRIVATE_KEY_NAMES =  ['GLOBAL_PRIVATE_KEY', 'GLOBAL_PRIVATE_KEY_PART1', 'GLOBAL_PRIVATE_KEY_PART2', 'GLOBAL_PRIVATE_KEY_PART3']
 PRIVATE_KEY_PASS_NAME =  'GLOBAL_PRIVATE_KEY_PASS'
-REQUIRED_KEYS =  ['aud', 'email', 'name', 'allowed-actions', 'allowed-data', 'hospital_code']
-REQUIRED_KEYS_TYPES =  ['str', 'str', 'str', 'list', 'list', 'str']
+REQUIRED_KEYS =  ['aud', 'email', 'name', 'allowed-actions', 'allowed-data', 'hospital_code', 'hms_outlets']
+REQUIRED_KEYS_TYPES =  ['str', 'str', 'str', 'list', 'list', 'str', 'list']
 ISSUER_KEY =  'iss'
 ISSUER_VALUE =  'https://lab.shinova.in/'
 ISSUED_AT_KEY = "iat"
@@ -64,7 +64,7 @@ def createJwt(values: dict):
     payload = values.copy()
     actions = payload['allowed-actions']
 
-    payload['allowed-outlets'] = crypter.getAllowedOutlets(actions)
+    payload['allowed-outlets'] = payload.pop('hms_outlets', [])
 
     if len(actions) > bitmapMinThreshold:
         print(f"Number of allowed actions ({len(actions)}) exceeds bitmap threshold ({bitmapMinThreshold}), using bitmap encoding")
