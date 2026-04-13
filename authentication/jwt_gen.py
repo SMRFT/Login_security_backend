@@ -64,7 +64,7 @@ def createJwt(values: dict):
     payload = values.copy()
     actions = payload['allowed-actions']
 
-    payload['allowed-outlets'] = values.get('hms_outlets', [])
+    payload['allowed-outlets'] = payload.pop('hms_outlets', [])
 
     if len(actions) > bitmapMinThreshold:
         print(f"Number of allowed actions ({len(actions)}) exceeds bitmap threshold ({bitmapMinThreshold}), using bitmap encoding")
