@@ -224,14 +224,18 @@ def get_todays_birthdays(request):
         client = MongoClient(os.getenv('GLOBAL_DB_HOST'))
         db = client[os.getenv('GLOBAL_DB_NAME')]
         profile_col = db['backend_diagnostics_profile']
+        user_col = db['backend_diagnostics_user']
         dept_col = db["backend_diagnostics_Departments"]
         desig_col = db["backend_diagnostics_Designation"]
 
         today = timezone.now().astimezone(IST).date()
         
-        # Fetch all profiles
-        # Note: Adapted from Profile.objects.all() to PyMongo
-        profiles_cursor = profile_col.find({})
+        # Fetch active users
+        active_users = user_col.find({"is_active": True}, {"employeeId": 1, "_id": 0})
+        active_employee_ids = [u.get("employeeId") for u in active_users if u.get("employeeId")]
+        
+        # Fetch all profiles belonging to active users
+        profiles_cursor = profile_col.find({"employeeId": {"$in": active_employee_ids}})
         
         filtered_profiles = []
         
