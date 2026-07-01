@@ -1,28 +1,46 @@
+import os, json, logging, traceback
+from datetime import date, datetime, timedelta
 from django.shortcuts import render
-import os, json
+from django.http import JsonResponse, HttpResponse
 from django.contrib.auth.hashers import check_password
+from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
 from rest_framework.response import Response
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from pymongo import MongoClient
 from bson import ObjectId
-from . import jwt_gen
+from bson.decimal128 import Decimal128
+import gridfs
+import pytz
 from dotenv import load_dotenv
+from . import jwt_gen
 
 load_dotenv()
+logger = logging.getLogger(__name__)
+IST = pytz.timezone("Asia/Kolkata")
 
-# Connect to MongoDB
-client = MongoClient(os.getenv('GLOBAL_DB_HOST'))
+# Connect to MongoDB with singleton connection pooling
+client = MongoClient(
+    os.getenv('GLOBAL_DB_HOST'),
+    maxPoolSize=50,
+    minPoolSize=5,
+    serverSelectionTimeoutMS=5000
+)
 db = client[os.getenv('GLOBAL_DB_NAME')]
 auth_collection = db['backend_diagnostics_user']
 profile_collection = db['backend_diagnostics_profile']
 role_mapping_collection = db['backend_diagnostics_RoleMapping']
 
+_permissions_cache = None
+
 @api_view(['GET'])
 def get_permissions(request):
+    global _permissions_cache
     try:
-        with open('auth/permissions_master.lst', 'r') as f:
-            permissions = [line.strip() for line in f.readlines() if line.strip()]
-        return Response({'permissions': permissions})
+        if _permissions_cache is None:
+            with open('auth/permissions_master.lst', 'r') as f:
+                _permissions_cache = [line.strip() for line in f.readlines() if line.strip()]
+        return Response({'permissions': _permissions_cache})
     except Exception as e:
         return Response({'error': str(e)}, status=500)
 
@@ -92,21 +110,17 @@ def login_view(request):
     all_permissions = []
     role_details = []
 
-    for role_code in all_roles:
-        role_data = role_mapping_collection.find_one({
-            "role_code": role_code,
+    role_docs = role_mapping_collection.find({"role_code": {"$in": all_roles}})
+    for role_data in role_docs:
+        perms = role_data.get('permissions', {}).get('allowed', [])
+        if isinstance(perms, list):
+            all_permissions.extend(perms)
+
+        role_details.append({
+            'role_code': role_data.get('role_code'),
+            'role_name': role_data.get('role_name'),
+            'role_description': role_data.get('role_description')
         })
-
-        if role_data:
-            perms = role_data.get('permissions', {}).get('allowed', [])
-            if isinstance(perms, list):
-                all_permissions.extend(perms)
-
-            role_details.append({
-                'role_code': role_data.get('role_code'),
-                'role_name': role_data.get('role_name'),
-                'role_description': role_data.get('role_description')
-            })
 
     # ---------------- HMS PAGE PERMISSIONS ----------------
     hms_pages = user_profile.get('hms_pages')
@@ -159,70 +173,39 @@ def login_view(request):
 
     token = jwt_gen.createJwt(token_vals)
 
+    # Record active session token for Single Device Login
+    auth_collection.update_one(
+        {"_id": user_data["_id"]},
+        {"$set": {"active_token": token}}
+    )
+
     return Response({
         'success': True,
         'access_token': token,
         'user': user_profile
     }, status=200)
 
-from django.http import JsonResponse
-from pymongo import MongoClient
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
 def getmodules(request):
     try:
-        client = MongoClient(os.getenv('GLOBAL_DB_HOST'))
-        db = client[os.getenv('GLOBAL_DB_NAME')]
         collection = db['backend_diagnostics_Modules']
-
         modules_cursor = collection.find({"is_active": True}, {'_id': 0})
         modules = list(modules_cursor)
-
         return JsonResponse({'modules': modules}, status=200)
-    
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
-from django.http import JsonResponse
-from pymongo import MongoClient
-import os
 def get_data_entitlements(request):
-    client = MongoClient(os.getenv('GLOBAL_DB_HOST'))
-    db = client[os.getenv('GLOBAL_DB_NAME')]
     collection = db['backend_diagnostics_DataEntitlements']
-    # Get allowed branch codes from request parameters (e.g., ?branchCodes=SHB001,ABC123)
     branch_codes = request.GET.get('branchCodes', '')
     branch_code_list = branch_codes.split(',') if branch_codes else []
-    # Filter by DataEntitlementsCode if provided
     query = {'DataEntitlementsCode': {'$in': branch_code_list}} if branch_code_list else {}
-    # Fetch matched entries excluding _id
     data_entitlements = collection.find(query, {'_id': 0, 'DataEntitlementsCode': 1, 'DataEntitlements': 1})
-    # Convert cursor to list
     entitlements_list = list(data_entitlements)
-
     return JsonResponse({'dataEntitlements': entitlements_list})
-
-from django.utils import timezone
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.response import Response
-import logging
-import pytz
-from datetime import date, datetime
-from pymongo import MongoClient
-import os
-
-logger = logging.getLogger(__name__)
-IST = pytz.timezone("Asia/Kolkata")
 
 @api_view(['GET'])
 def get_todays_birthdays(request):
     try:
-        # Re-establish connection or use global if preferred (sticking to local for safety in this mixed file)
-        client = MongoClient(os.getenv('GLOBAL_DB_HOST'))
-        db = client[os.getenv('GLOBAL_DB_NAME')]
         profile_col = db['backend_diagnostics_profile']
         user_col = db['backend_diagnostics_user']
         dept_col = db["backend_diagnostics_Departments"]
@@ -230,11 +213,9 @@ def get_todays_birthdays(request):
 
         today = timezone.now().astimezone(IST).date()
         
-        # Fetch active users
         active_users = user_col.find({"is_active": True}, {"employeeId": 1, "_id": 0})
         active_employee_ids = [u.get("employeeId") for u in active_users if u.get("employeeId")]
         
-        # Fetch all profiles belonging to active users
         profiles_cursor = profile_col.find({"employeeId": {"$in": active_employee_ids}})
         
         filtered_profiles = []
@@ -243,14 +224,11 @@ def get_todays_birthdays(request):
             dob = profile.get('dateOfBirth')
             dob_date = None
             
-            # Parse Date of Birth
             if dob:
                 if isinstance(dob, str):
                     try:
-                        # Attempt to parse common format YYYY-MM-DD
                         dob_date = datetime.strptime(dob, "%Y-%m-%d").date()
                     except ValueError:
-                        # Try parsing ISO format if needed or ignore
                         continue
                 elif isinstance(dob, datetime):
                     dob_date = dob.date()
@@ -258,17 +236,15 @@ def get_todays_birthdays(request):
                     dob_date = dob
             
             if dob_date and dob_date.month == today.month and dob_date.day == today.day:
-                # calculate age
                 age = today.year - dob_date.year - ((today.month, today.day) < (dob_date.month, dob_date.day))
                 
-                # Update age in DB
-                profile_col.update_one(
-                    {'_id': profile['_id']},
-                    {'$set': {'age': age}}
-                )
+                if profile.get('age') != age:
+                    profile_col.update_one(
+                        {'_id': profile['_id']},
+                        {'$set': {'age': age}}
+                    )
                 
                 profile['age'] = age
-                # Convert ObjectId to string for JSON serialization
                 profile['id'] = str(profile['_id'])
                 if '_id' in profile:
                     del profile['_id']
@@ -278,29 +254,24 @@ def get_todays_birthdays(request):
         if not filtered_profiles:
             return Response({"success": False, "message": "No birthdays found today."}, status=200)
 
-        # Use filtered_profiles directly (instead of EmployeeBirthdaySerializer)
         birthday_data = filtered_profiles
 
-        # Enrich department & designation from Mongo
+        dept_codes = list({p.get("department") for p in birthday_data if p.get("department")})
+        desig_codes = list({p.get("designation") for p in birthday_data if p.get("designation")})
+        
+        dept_map = {d["department_code"]: d.get("department_name") for d in dept_col.find({"department_code": {"$in": dept_codes}})}
+        desig_map = {d["Designation_code"]: d.get("designation") for d in desig_col.find({"Designation_code": {"$in": desig_codes}})}
+        
         for profile in birthday_data:
-            dept_code = profile.get("department")
-            desig_code = profile.get("designation")
+            if profile.get("department") in dept_map:
+                profile["department"] = dept_map[profile["department"]]
+            elif profile.get("department"):
+                logger.warning(f"No department found for code {profile.get('department')}")
 
-            # Department
-            if dept_code:
-                dept = dept_col.find_one({"department_code": dept_code})
-                if dept:
-                    profile["department"] = dept.get("department_name")
-                else:
-                    logger.warning(f"No department found for code {dept_code}")
-
-            # Designation
-            if desig_code:
-                desig = desig_col.find_one({"Designation_code": desig_code})
-                if desig:
-                    profile["designation"] = desig.get("designation")
-                else:
-                    logger.warning(f"No designation found for code {desig_code}")
+            if profile.get("designation") in desig_map:
+                profile["designation"] = desig_map[profile["designation"]]
+            elif profile.get("designation"):
+                logger.warning(f"No designation found for code {profile.get('designation')}")
 
         return Response({
             "success": True,
@@ -310,34 +281,17 @@ def get_todays_birthdays(request):
 
     except Exception as e:
         logger.error(f"Error fetching today's birthdays: {str(e)}")
-
         return Response({"success": False, "message": "Error retrieving data.", "error": str(e)}, status=500)
-
-
-
-import gridfs
-from django.http import HttpResponse
 
 def get_file(request, file_id):
     try:
-        client = MongoClient(os.getenv('GLOBAL_DB_HOST'))
-        db = client[os.getenv('GLOBAL_DB_NAME')]
         fs = gridfs.GridFS(db)
         
         try:
-            # Convert string ID to ObjectId
             oid = ObjectId(file_id)
-            
-            # Retrieve file from GridFS
             grid_out = fs.get(oid)
-            
-            # Create response with file content
-            # Note: For large files, StreamingHttpResponse is better, but this suffices for typical use cases
             response = HttpResponse(grid_out.read(), content_type=grid_out.content_type)
-            
-            # Set filename header (inline enables preview in browser)
             response['Content-Disposition'] = f'inline; filename="{grid_out.filename}"'
-            
             return response
             
         except gridfs.errors.NoFile:
@@ -353,22 +307,6 @@ def get_file(request, file_id):
 
 
 
-
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.response import Response
-from django.views.decorators.csrf import csrf_exempt
-
-from django.db.models import Sum
-from pymongo import MongoClient
-import os
-import json
-from datetime import datetime, timedelta
-from django.utils import timezone
-import logging
-from bson.decimal128 import Decimal128
-import traceback
-
-logger = logging.getLogger(__name__)
 
 def to_float(value):
     """ Safely convert various number formats (BSON Decimal128, string, dict) to float """
@@ -475,7 +413,7 @@ def m_dashboard_stats(request):
         }
 
         # --- MongoDB Connection ---
-        client = MongoClient(os.getenv('GLOBAL_DB_HOST'))
+        # Reusing global connection pool client
 
         # --- 1. Core Billing (MongoDB) ---
         try:
@@ -485,7 +423,8 @@ def m_dashboard_stats(request):
             core_query = {
                 "date": {"$gte": start_date, "$lt": end_date}
             }
-            core_bills = list(col_core.find(core_query))
+            core_projection = {"_id": 0, "segment": 1, "B2B": 1, "totalAmount": 1, "credit_amount": 1, "netAmount": 1, "testdetails": 1}
+            core_bills = col_core.find(core_query, core_projection)
 
             for bill in core_bills:
                 # Segment
@@ -534,7 +473,8 @@ def m_dashboard_stats(request):
                 "created_date": {"$gte": start_date, "$lt": end_date}
             }
             
-            franchise_bills = list(col_franchise.find(franchise_query))
+            franchise_projection = {"_id": 0, "credit_amount": 1, "billed_amount": 1, "netAmount": 1, "testdetails": 1}
+            franchise_bills = col_franchise.find(franchise_query, franchise_projection)
             
             for bill in franchise_bills:
                 stats["samples"]["segments"]["franchise"] += 1
@@ -584,7 +524,8 @@ def m_dashboard_stats(request):
                 "created_date": {"$gte": start_date, "$lt": end_date}
             }
             
-            corp_bills = list(col_corporate.find(corp_query))
+            corp_projection = {"_id": 0, "total": 1, "totalAmount": 1, "netAmount": 1, "credit_amount": 1, "paymentMode": 1, "testdetails": 1}
+            corp_bills = col_corporate.find(corp_query, corp_projection)
             
             for bill in corp_bills:
                 stats["samples"]["segments"]["company_health_check"] += 1
@@ -647,7 +588,8 @@ def m_dashboard_stats(request):
                 "date": {"$gte": s_str, "$lte": e_str}
             }
             
-            ins_records = list(col_insurance.find(ins_query))
+            ins_projection = {"_id": 0, "amount": 1, "payment_details": 1, "refund": 1}
+            ins_records = col_insurance.find(ins_query, ins_projection)
             
             for record in ins_records:
                 # Add to Insurance segment (will need to add key to stats init)
@@ -712,9 +654,9 @@ def m_dashboard_stats(request):
                 "date": {"$gte": start_date, "$lt": end_date}
             }
             
-            therapy_recs = list(col_therapy.find(therapy_query))
-            others_recs = list(col_others.find(others_query))
-            assessment_recs = list(col_assessment.find(assessment_query))
+            therapy_recs = list(col_therapy.find(therapy_query, {"_id": 0, "total_amount": 1, "amount_paid": 1}))
+            others_recs = list(col_others.find(others_query, {"_id": 0, "others_items": 1, "total_amount": 1}))
+            assessment_recs = list(col_assessment.find(assessment_query, {"_id": 0, "assessments": 1, "total_price": 1, "finalAmount": 1}))
             
             # Combine all records
             all_milestone = therapy_recs + others_recs + assessment_recs
@@ -773,7 +715,7 @@ def m_dashboard_stats(request):
             er_query = {
                 "date": {"$gte": start_date, "$lt": end_date}
             }
-            er_bills = list(col_er.find(er_query))
+            er_bills = list(col_er.find(er_query, {"_id": 0, "total": 1, "net_amount": 1}))
             
             # Init stats
             if "er_billing" not in stats["samples"]["segments"]:
@@ -811,12 +753,17 @@ def m_dashboard_stats(request):
                 db_global = client[global_db_name]
                 col_profile = db_global['backend_diagnostics_profile']
                 
-                # Total Employees
-                stats["employee_stats"]["total_employees"] = col_profile.count_documents({})
-                
-                # Gender counts (case-insensitive)
-                stats["employee_stats"]["male"] = col_profile.count_documents({"gender": {"$regex": "^male$", "$options": "i"}})
-                stats["employee_stats"]["female"] = col_profile.count_documents({"gender": {"$regex": "^female$", "$options": "i"}})
+                # Total Employees & Gender counts via aggregation
+                pipeline = [
+                    {"$group": {
+                        "_id": {"$toLower": {"$ifNull": ["$gender", "unknown"]}},
+                        "count": {"$sum": 1}
+                    }}
+                ]
+                gender_counts = {doc["_id"]: doc["count"] for doc in col_profile.aggregate(pipeline)}
+                stats["employee_stats"]["total_employees"] = sum(gender_counts.values())
+                stats["employee_stats"]["male"] = gender_counts.get("male", 0)
+                stats["employee_stats"]["female"] = gender_counts.get("female", 0)
             else:
                  logger.warning("GLOBAL_DB_NAME not set, skipping employee stats")
 
@@ -842,7 +789,7 @@ def m_dashboard_stats(request):
             logger.error(traceback.format_exc())
 
         finally:
-            client.close()
+            pass # Reusing global connection pool
 
         return Response({"success": True, "data": stats})
 

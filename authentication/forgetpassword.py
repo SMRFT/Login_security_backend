@@ -10,8 +10,12 @@ from django.conf import settings
 from pymongo import MongoClient
 import json
 from urllib.parse import urlencode
-# MongoDB connection
-client = MongoClient(os.getenv('GLOBAL_DB_HOST'))
+client = MongoClient(
+    os.getenv('GLOBAL_DB_HOST'),
+    maxPoolSize=50,
+    minPoolSize=5,
+    serverSelectionTimeoutMS=5000
+)
 db = client[os.getenv('GLOBAL_DB_NAME', "Global")]
 users_collection = db['backend_diagnostics_profile']
 reset_tokens_collection = db['password_reset_tokens']
