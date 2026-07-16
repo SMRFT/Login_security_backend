@@ -173,11 +173,7 @@ def login_view(request):
 
     token = jwt_gen.createJwt(token_vals)
 
-    # Record active session token for Single Device Login
-    auth_collection.update_one(
-        {"_id": user_data["_id"]},
-        {"$set": {"active_token": token}}
-    )
+
 
     return Response({
         'success': True,
