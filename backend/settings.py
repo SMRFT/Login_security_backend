@@ -55,7 +55,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'authentication.middleware.SingleDeviceLoginMiddleware',  # Single Device Login enforcement
+
 ]
 
 ROOT_URLCONF = 'backend.urls'
